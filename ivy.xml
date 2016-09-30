@@ -1,8 +1,7 @@
 <ivy-module version="2.0">
 	<info organisation="com.github.sevntu.checkstyle" module="sample" />
 	<dependencies>
-		<dependency org="com.puppycrawl.tools" name="checkstyle" rev="7.1" />
-                <dependency org="com.github.sevntu.checkstyle" name="sevntu-checks" rev="1.21.0" />
+		<dependency org="com.github.sevntu.checkstyle" name="sevntu-checks" rev="1.21.0" />
                 <dependency org="org.apache.logging.log4j" name="log4j-api" rev="2.6.2" />
                 <dependency org="org.apache.logging.log4j" name="log4j-core" rev="2.6.2" />
                 <dependency org="fr.in2p3.jsaga" name="jsaga-engine" rev="1.1.2" />
