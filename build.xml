@@ -1,8 +1,12 @@
-<project name="APIServer Daemon" default="help" basedir=".">
+<project name="APIServer Daemon" 
+         default="help" 
+         basedir="."
+         xmlns:ivy="antlib:org.apache.ivy.ant">
   <!-- Define the properties used by the build -->
   <property environment="env"/>
   <property name="app.name"       value="APIServerDaemon"/>
   <property name="app.libs"       value="${basedir}/web/WEB-INF/lib"/>
+  <property name="app.baselibs"   value="${basedir}/lib"/>
   <property name="appserver.home" value="${env.CATALINA_HOME}" />
   <property name="work.home"      value="${basedir}/work"/>
   <property name="dist.home"      value="${basedir}/dist"/>
@@ -34,15 +38,34 @@
     <fileset dir="${app.libs}">
       <include name="*.jar"/>
     </fileset>
+    <fileset dir="${app.baselibs}">
+      <include name="*.jar"/>
+    </fileset>
   </path>
 
-  <target name="all" depends="clean,compile,dist"
+  <target name="all" depends="clean, resolve, check, compile,dist"
           description="Clean work dirs, then compile and create a WAR"/>
 
   <target name="clean"
           description="Delete old work and dist directories">
     <delete dir="${work.home}"/>
     <delete dir="${dist.home}"/>
+  </target>
+
+  <target name="check" depends="resolve"
+          description="Codestyle check with checkstyle">
+      <!-- <taskdef resource="checkstyle-ant-task.properties" classpath="${app.baselibs}/checkstyle-7.1.jar"/>  -->
+      <!--
+      <taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties" 
+               classpath="${app.baselibs}/checkstyle-7.1.jar"/> -->
+      <taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties">
+          <classpath refid="compile.classpath"/>
+      </taskdef>
+          <checkstyle config="${basedir}/sun_checks.xml"
+                      failOnViolation="true">
+              <fileset dir="${basedir}/src/java/it/infn/ct" includes="**/*.java"/>
+              <formatter type="xml" tofile="checkstyle-report.xml"/>
+          </checkstyle>
   </target>
 
   <target name="prepare" depends="clean"
@@ -75,5 +98,40 @@
     <jar jarfile="${dist.home}/${app.name}.war"
          basedir="${work.home}"/>
   </target>
+
+
+
+
+  <!-- ivy -->
+  <target name="resolve" description="retrieve dependencies with ivy" depends="init-ivy">
+    	<ivy:settings file="ivysettings.xml" />
+        <ivy:retrieve />    	
+    </target>
+
+  <property name="ivy.install.version" value="2.1.0-rc2" />
+    <!-- You may place ivy.jar into other folder if you want to keep folder lib clean-->
+    <property name="ivy.jar.dir" value="lib" />
+    <property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar" />
+
+    <target name="download-ivy" unless="offline">
+
+        <mkdir dir="${ivy.jar.dir}"/>
+        <!-- download Ivy from web site so that it can be used even without any special installation -->
+        <get src="http://repo2.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar" 
+             dest="${ivy.jar.file}" usetimestamp="true"/>
+    </target>
+
+    <target name="init-ivy" depends="download-ivy">
+      <!-- try to load ivy here from ivy home, in case the user has not already dropped
+              it into ant's lib dir (note that the latter copy will always take precedence).
+              We will not fail as long as local lib dir exists (it may be empty) and
+              ivy is in at least one of ant's lib dir or the local lib dir. -->
+        <path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+        </path>
+
+        <taskdef resource="org/apache/ivy/ant/antlib.xml"
+                 uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path"/>
+    </target>
 
 </project>

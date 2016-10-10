@@ -1,25 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Context antiJARLocking="true" path="/APIServerDaemon_prj" crossContext="true">
-   
-    <Resource
-        name="jdbc/fgApiServerPool"        
-        auth="Container"
-        type="javax.sql.DataSource"
-        driverClassName="com.mysql.jdbc.Driver"
-        url="jdbc:mysql://localhost:3306/fgapiserver"
-        username="fgapiserver"
-        password="fgapiserver_password"
-        maxTotal="100"
-        maxIdle="30"
-        maxWaitMillis="10000"
-    />
-    
-    <!-- GridEngine connection pools are globally defined -->         
-    <ResourceLink name="jdbc/UserTrackingPool"
-                  global="jdbc/UserTrackingPool"
-                  type="javax.sql.DataSource"/>
-
-    <ResourceLink name="jdbc/gehibernatepool"
-                  global="jdbc/gehibernatepool"
-                  type="javax.sql.DataSource"/>
+<Context antiJARLocking="true" crossContext="true" path="/APIServerDaemon">
+  <Resource auth="Container" driverClassName="com.mysql.jdbc.Driver" maxIdle="30" maxTotal="100" maxWaitMillis="10000" name="jdbc/fgApiServerPool" password="fgapiserver_password" type="javax.sql.DataSource" url="jdbc:mysql://localhost:3306/fgapiserver" username="fgapiserver"/>
+  <!-- GridEngine connection pools are globally defined -->
+  <ResourceLink global="jdbc/UserTrackingPool" name="jdbc/UserTrackingPool" type="javax.sql.DataSource"/>
+  <ResourceLink global="jdbc/gehibernatepool" name="jdbc/gehibernatepool" type="javax.sql.DataSource"/>
 </Context>
