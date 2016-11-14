@@ -90,8 +90,11 @@ class APIServerDaemonProcessCommand implements Runnable {
         /**
          * Delete the reference of a task (unused; for fole based task DELETE).
          */
-        DELETE
-
+        DELETE,
+        /**
+         * Status change command.
+         */
+        STATUSCH
     }
 
     /**
@@ -184,6 +187,10 @@ class APIServerDaemonProcessCommand implements Runnable {
 
         case DELETE:
             cmdDelete();
+            break;
+
+        case STATUSCH:
+            cmdStatusChange();
             break;
 
         default:
@@ -298,6 +305,49 @@ class APIServerDaemonProcessCommand implements Runnable {
             asdCommand.update();
         } else {
             LOG.error("Unsupported target: '" + asdCommand.getTarget() + "'");
+        }
+    }
+
+    /**
+     * Execute a GridEngineDaemon 'cmdStatusChange' command.
+     */
+    private void cmdStatusChange() {
+        LOG.debug("Status change for command: " + asdCommand
+                + " - for target: '" + asdCommand.getTarget() + "'");
+
+        switch (asdCommand.getTarget()) {
+        case "GridEngine":
+            LOG.warn("No status change handled for GridEngine EI");
+            break;
+
+        case "SimpleTosca":
+            LOG.warn("No status change handled for SimpleTosca EI");
+            break;
+
+        case "ToscaIDC":
+            ToscaIDCInterface tidcInterface =
+                    new ToscaIDCInterface(asdConfig, asdCommand);
+            int toscaIDCId = tidcInterface.submitTosca();
+
+            if (asdCommand.getTargetStatus() == "CANCELLED") {
+              String uuid = tidcInterface.getToscaUUID(asdCommand);
+              tidcInterface.deleteToscaDeployment(uuid);
+              // Get SUBMIT command and change its status to CANCELLED
+              APIServerDaemonCommand subCmd = asdCommand.getSubmitCommand();
+              subCmd.setStatus("CANCELLED");
+              subCmd.update();
+            }
+            LOG.debug("Status changed for command (ToscaIDC): "
+                    + asdCommand.toString());
+            break;
+
+        // case "<other_target>"
+        // break;
+        default:
+            LOG.error("Unsupported target: '"
+                    + asdCommand.getTarget() + "' for STATUSCH action");
+
+            break;
         }
     }
 }

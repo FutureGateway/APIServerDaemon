@@ -31,6 +31,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
@@ -772,7 +773,10 @@ public class APIServerDaemonDB {
             // statement=connect.createStatement();
             statement.execute(sql);
             // Delete entries in task
-            sql = "delete from task where id = ?;";
+            // !!! Removing tasks causes dangerous task_id recycle; using
+            //     status update to 'PURGED' instead.
+            //sql = "delete from task where id = ?;";
+            sql = "update task set status = 'PURGED' where id = ?;";
             preparedStatement = connect.prepareStatement(sql);
             preparedStatement.setInt(1, taskId);
             preparedStatement.execute();
@@ -1035,4 +1039,89 @@ public class APIServerDaemonDB {
 
         return rtdValue;
     }
+
+    /**
+     * Get the command object related to the SUBMIT action stating from
+     * a given task_id.
+     * @return APIServerDaemonCommand object
+     * @param taskId - Task record identifier
+     */
+    public final APIServerDaemonCommand getSubmitCommand(final int taskId) {
+        APIServerDaemonCommand asdSubCmd = null;
+
+        if (!connect()) {
+            LOG.fatal("Not connected to database");
+            return asdSubCmd;
+        }
+
+        try {
+            int targetId;
+            String targetName;
+            String commandAction;
+            String commandStatus;
+            String targetStatus;
+            int retryCount;
+            Date commandCreation;
+            Date commandChange;
+            Date commandCheck;
+            String commandInfo;
+            String sql;
+
+            sql = "select task_id," + LS
+                + "       target_id," + LS
+                + "       target," + LS
+                + "       action," + LS
+                + "       status," + LS
+                + "       target_status," + LS
+                + "       retry," + LS
+                + "       creation," + LS
+                + "       last_change," + LS
+                + "       check_ts," + LS
+                + "       action_info" + LS
+                + "from as_queue " + LS
+                + "where task_id = ?" + LS
+                + "  and action = 'SUBMIT';";
+            preparedStatement = connect.prepareStatement(sql);
+            preparedStatement.setInt(1, taskId);
+            resultSet = preparedStatement.executeQuery();
+
+            while (resultSet.next()) {
+                targetId = resultSet.getInt("target_id");
+                targetName = resultSet.getString("target");
+                commandAction = resultSet.getString("action");
+                commandStatus = resultSet.getString("status");
+                targetStatus = resultSet.getString("target_status");
+                retryCount = resultSet.getInt("retry");
+                commandCreation = resultSet.getDate("creation");
+                commandChange = resultSet.getDate("last_change");
+                commandCheck = resultSet.getDate("check_ts");
+                commandInfo = resultSet.getString("action_info");
+                // Create the command
+                asdSubCmd = new APIServerDaemonCommand(
+                            connectionURL,
+                            taskId,
+                            targetId,
+                            targetName,
+                            commandAction,
+                            commandStatus,
+                            targetStatus,
+                            retryCount,
+                            commandCreation,
+                            commandChange,
+                            commandCheck,
+                            commandInfo);
+            }
+            resultSet.close();
+            resultSet = null;
+            preparedStatement.close();
+            preparedStatement = null;
+        } catch (SQLException e) {
+            LOG.fatal(e.toString());
+        } finally {
+            closeSQLActivity();
+        }
+
+        return asdSubCmd;
+    }
+
 }

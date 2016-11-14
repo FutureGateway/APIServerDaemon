@@ -545,6 +545,15 @@ public class APIServerDaemonCheckCommand implements Runnable {
                         // as_queue status field must remain 'PROCESSED'
                         // currState = status;
                     break;
+                    /* Check statuses are coming from infrastructure this is
+                       wrong; cancel requests must come from a separate
+                       as_queue record
+                    case "CANCELLED":
+                        String uuid = tidcInterface.getToscaUUID(asdCommand);
+                        tidcInterface.deleteToscaDeployment(uuid);
+                        currState = "CANCELLED";
+                    break;
+                    */
                     default:
                         asdCommand.setTargetStatus(status);
                         LOG.warn("Unhandled status: '" + status + "'");

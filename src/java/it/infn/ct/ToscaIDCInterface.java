@@ -27,6 +27,7 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -38,14 +39,16 @@ import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import java.text.ParseException;
+import java.util.Properties;
 import java.util.Random;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 
 /**
  * APIServerDaemon interface for TOSCA.
@@ -57,7 +60,7 @@ public class ToscaIDCInterface {
      * Logger object.
      */
     private static final Logger LOG =
-            Logger.getLogger(APIServerDaemonController.class.getName());
+            Logger.getLogger(ToscaIDCInterface.class.getName());
     /**
      * Line separator constant.
      */
@@ -82,6 +85,10 @@ public class ToscaIDCInterface {
      * HTTP code 404.
      */
     public static final int HTTP_204 = 201;
+    /**
+     * ToscaIDC properties file name.
+     */
+    private static final String TOSCAIDC_PROPFILE = "ToscaIDC.properties";
 
     /**
      * APIServerDaemon database connection URL.
@@ -164,14 +171,39 @@ public class ToscaIDCInterface {
      * Input and output files array.
      */
     private String[] files = null;
+    /**
+     * ToscaIDC properties ptvEndPoint.
+     */
+    private String ptvEndPoint = "";
+    /**
+     * ToscaIDC properties ptvUser.
+     */
+    private String ptvUser = "";
+    /**
+     * ToscaIDC properties ptvPass.
+     */
+    private String ptvPass = "";
+    /**
+     * PTV get-token endpoint.
+     */
+    private String ptvGetToken = "get-token";
+    /**
+     * PTV check-token endpoint.
+     */
+    private String ptvCheckToken = "check-token";
 
     /**
      * Empty constructor for ToscaIDCInterface.
      */
     public ToscaIDCInterface() {
         LOG.debug("Initializing ToscaIDCInterface");
-        System.setProperty("saga.factory",
-                "fr.in2p3.jsaga.impl.SagaFactoryImpl");
+        // Load ToscaIDC properties file
+        try {
+            getToscaIDCProperties();
+        } catch (IOException ex) {
+            LOG.error("Unable to load properties file: '"
+                    + TOSCAIDC_PROPFILE + "'");
+        }
     }
 
     /**
@@ -220,6 +252,41 @@ public class ToscaIDCInterface {
         return toscaCommand.getActionInfo()
              + FS + toscaCommand.getTaskId() + "_toscaIDC.json";
     }
+/**
+ * Load the ToscaIDC.properties file.
+ * @throws IOException - Raise exception if no properties are extracted
+ */
+public final void getToscaIDCProperties() throws IOException {
+    InputStream inputStream = null;
+
+    try {
+        Properties prop = new Properties();
+
+        inputStream =
+                this.getClass().getResourceAsStream(TOSCAIDC_PROPFILE);
+
+        if (inputStream != null) {
+                prop.load(inputStream);
+        } else {
+                throw new FileNotFoundException("ToscaIDC property file '"
+                       + TOSCAIDC_PROPFILE + "' not found in the classpath");
+        }
+
+        // ToscaIDC may require PTV settings
+        ptvEndPoint = prop.getProperty("fgapisrv_ptvendpoint");
+        ptvUser     = prop.getProperty("fgapisrv_ptvuser");
+        ptvPass     = prop.getProperty("fgapisrv_ptvpass");
+
+        LOG.debug("PTV Settings - Endpoint: '" + ptvEndPoint
+                + "' User: '" + ptvUser
+                + "' Password: '" + ptvPass + "'");
+    } catch (Exception e) {
+            LOG.error("Unable to load PTV settings: '"
+                    + TOSCAIDC_PROPFILE + "'");
+    } finally {
+            inputStream.close();
+    }
+}
 
 /**
  * Load from <task_id>.json file command parameters.
@@ -343,9 +410,6 @@ public final void loadJSONTask() {
             switch (paramName) {
             case "tosca_endpoint":
                 toscaEndPoint = new URL(paramValue);
-                toscaCommand.setRunTimeData("tosca_endpoint",
-                        toscaEndPoint.toString(),
-                        "TOSCA endpoint", "", "");
                 LOG.debug("tosca_endpoint: '" + toscaEndPoint + "'");
                 break;
             case "tosca_template":
@@ -448,10 +512,15 @@ public final void mkOutputDir() {
         // Load command parameters from <task_id>.json file
         loadJSONTask();
 
-        toscaToken = tiiDB.getToken(toscaCommand);
+        String[] taskTokenSubject =
+                tiiDB.getToken(toscaCommand).split(",");
+        toscaToken = taskTokenSubject[0];
+        String subject = "" + taskTokenSubject[1];
+
         LOG.debug("Token for toscaCommand having id: '"
                 + toscaCommand.getTaskId()
-                + "' is: '" + toscaToken + "'");
+                + "' is: '" + toscaToken
+                + "' - subject: '" + subject + "'");
 
         // Submit the job
         toscaUUID = submitOrchestrator();
@@ -493,6 +562,26 @@ public final void mkOutputDir() {
                         + "(ToscaIDC) with id: '"
                         + toscaId + "' - status: '"
                         + submitStatus + "'");
+
+                toscaCommand.setRunTimeData("tosca_endpoint",
+                        toscaEndPoint.toString(),
+                        "TOSCA endpoint", "", "");
+
+                toscaCommand.setRunTimeData("tosca_uuid",
+                        toscaUUID,
+                        "TOSCA UUID", "", "");
+
+                if (subject.length() > 0) {
+                    toscaCommand.setRunTimeData("subject",
+                            subject,
+                            "PTV subject field", "", "");
+                }
+
+                LOG.debug("Registered tosca_endpooint: '"
+                        + toscaEndPoint.toString() + "' - UUID: '"
+                        + toscaUUID + "' - subject: '"
+                        + subject + "' "
+                        + "in runtime_data '");
             }
         } catch (Exception e) {
             LOG.fatal("Unable to register tosca_id: '" + toscaUUID + "'");
@@ -537,8 +626,8 @@ public final void mkOutputDir() {
                             + toscaParametersJson + "' is not readable");
                     LOG.error(ex);
                 } catch (ParseException ex) {
-                    LOG.error("Parameters json file '"
-                            + toscaParametersJson + "' is not parseable");
+                    LOG.error("Error parsing : '"
+                            + Paths.get(toscaParametersJson) + "'");
                     LOG.error(ex);
                 }
                 LOG.debug("Parameters json file '"
@@ -610,9 +699,9 @@ public final void mkOutputDir() {
     }
 
     /**
-     * Read values from the json.
+     * Return the specified key value from a given json string.
      *
-     * @param json -The json from where to
+     * @param json -The json from where to extract the key value
      * @param key - The element to return. It can retrieve nested elements
      *              providing the full chain as
      *              &lt;element&gt;.&lt;element&gt;.&lt;element&gt;
@@ -622,8 +711,8 @@ public final void mkOutputDir() {
     protected final String getDocumentValue(final String json,
                                             final  String key)
             throws ParseException {
-        JSONParser parser = new JSONParser();
-        JSONObject jsonObject = (JSONObject) parser.parse(json);
+        JSONTokener tokener = new JSONTokener(json);
+        JSONObject jsonObject = new JSONObject(tokener);
         String[] keyelement = key.split("\\.");
         for (int i = 0; i < (keyelement.length - 1); i++) {
             jsonObject = (JSONObject) jsonObject.get(keyelement[i]);
@@ -692,6 +781,16 @@ public final void mkOutputDir() {
     }
 
     /**
+     * Return the TOSCA UUID associated to the given Command.
+     * @param asdCommand - The command where to extract the UUID field
+     * @return TOSCA UUID
+     */
+    public final String getToscaUUID(
+            final APIServerDaemonCommand asdCommand) {
+        return tiiDB.toscaEndPoint(toscaCommand);
+    }
+
+    /**
      * GetStatus of TOSCA submission.
      *
      * @return Status o TOSCA UUID
@@ -712,7 +811,15 @@ public final void mkOutputDir() {
         LOG.debug("tosca endpoint: '" + toscaEndPoint + "'");
         String tUUID = tiiDB.getToscaId(toscaCommand);
         LOG.debug("tosca UUID: '" + tUUID + "'");
-        String tToken = tiiDB.getToken(toscaCommand);
+        String[] taskTokenSubject =
+                tiiDB.getToken(toscaCommand).split(",");
+        String tToken = taskTokenSubject[0];
+        String tSubject = taskTokenSubject[1];
+        if (tSubject.length() > 0) {
+            // Token having a subject require a fresh token from PTV
+            tToken = getPTVToken(tSubject);
+            LOG.debug("PTV Token is: '" + tToken + "'");
+        }
         LOG.debug("tosca Token: '" + tToken + "'");
         String toscaDeploymentInfo = getToscaDeployment(tUUID, tToken);
         LOG.debug("tosca deployment info: '" + toscaDeploymentInfo + "'");
@@ -820,6 +927,8 @@ public final void mkOutputDir() {
                 LOG.error("Unable to remove resource: '"
                         + uuid + "'");
             }
+            // update target status
+            tiiDB.updateToscaStatus(tiiDB.getTaskIdByUUID(uuid), "RELEASED");
         } catch (IOException ex) {
             LOG.error("Connection error with the service at "
                     + toscaEndPoint.toString());
@@ -849,5 +958,66 @@ public final void mkOutputDir() {
         }
     }
 
-}
+    /**
+     * Retrieve a valid Token from PTV service related to a give subject.
+     * @param tSubject - Subject of the Portal user
+     * @return New valid token
+     */
+    public final String getPTVToken(final String tSubject) {
+        // Add here the equivalent code of:
+        // curl <ptv_host>:<ptv_port>/get-token \
+        // -u 'ptv_user:ptv_password' \
+        // -d subject='the_subject'
+        // Then handle the output JSON:
+        //{
+        //  "token": "eyJraWQi...",
+        //  "subject": "the_subject",
+        //  "groups": null,
+        //  "error": null
+        // }
+        // returning the token value
+        URL ptvGetTokenURL = null;
+        String jsonAnswer = "";
+        String newToken = "";
 
+        // Contact PTV with Basic authentication
+        try {
+            ptvGetTokenURL = new URL(ptvEndPoint + "/" + ptvGetToken);
+            String encoding =
+                    Base64.encodeBase64String(
+                            (ptvUser + ":" + ptvPass).getBytes());
+            HttpURLConnection conn =
+                    (HttpURLConnection) ptvGetTokenURL.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setRequestProperty("charset", "utf-8");
+            conn.setRequestProperty("Authorization",
+                                    "Basic " + encoding);
+            conn.setDoOutput(true);
+            OutputStreamWriter wr =
+                    new OutputStreamWriter(conn.getOutputStream());
+            wr.write("subject=" + tSubject);
+            wr.flush();
+            wr.close();
+            InputStream content = (InputStream) conn.getInputStream();
+            BufferedReader in   =
+                new BufferedReader(new InputStreamReader(content));
+            String line;
+            while ((line = in.readLine()) != null) {
+                jsonAnswer += line;
+            }
+            LOG.debug("PTV get-token JSON: '" + jsonAnswer + "'");
+            // Now get token info from JSON
+            newToken = getDocumentValue(jsonAnswer, "token");
+        } catch (ParseException ex) {
+            LOG.error("Unable to parse returned JSON: '"
+                    + jsonAnswer + "'");
+        } catch (IOException ex) {
+            LOG.error("Unable to contact PTV end-point: '"
+                    + ptvGetTokenURL.toString() + "'");
+        }
+        LOG.debug("New token is: '" + newToken + "'");
+        return newToken;
+    }
+}
