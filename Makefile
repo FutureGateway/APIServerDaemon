@@ -118,7 +118,7 @@ else
   out "Creating $$FGUSER"
   cmd_exec "adduser --disabled-password --gecos \"\" $F$GUSER"
 fi
-cmd_exec "tar xvfz /$$HOMEDIR/$$FGUSER/APIServerDaemon_lib.tar.gz -C /$$HOMEDIR/$$FGUSER/$$FGPRODUCT/web/WEB-INF"
+cmd_exec "tar xvfz /$$HOMEDIR/$$FGUSER/$$FGPRODUCT/APIServerDaemon_lib.tar.gz -C /$$HOMEDIR/$$FGUSER/$$FGPRODUCT/web/WEB-INF"
 cmd_exec "export CATALINA_BASE=\$$(/usr/share/tomcat7/bin/catalina.sh version | grep CATALINA_BASE | awk '{ print \$$3 }' | xargs echo)"
 cmd_exec "export CATALINA_HOME=\$$(/usr/share/tomcat7/bin/catalina.sh version | grep CATALINA_HOME | awk '{ print \$$3 }' | xargs echo)"
 cmd_exec "cd /$$HOMEDIR/$$FGUSER/$$FGPRODUCT && ant all && cd -"
@@ -144,7 +144,7 @@ deb:
 	@cd $(PKGDIR)/$(HOMEDIR)/$(FGUSER) && ln -s $$(ls -1 | grep APIServerDaemon | head -n 1) APIServerDaemon && cd -
 	@cp -r . $(PKGDIR)/$(HOMEDIR)/$(FGUSER)/$(DEBPKGDIR)
 	@rm -rf $(PKGDIR)/.git
-	@[ -f APIServerDaemon_lib.tar.gz ] || wget http://sgw.indigo-datacloud.eu/fgsetup/APIServerDaemon_lib.tar.gz -O $(PKGDIR)/$(HOMEDIR)/$(FGUSER)/APIServerDaemon_lib.tar.gz
+	@[ -f $(DEBPKGDIR)/APIServerDaemon_lib.tar.gz ] || wget http://sgw.indigo-datacloud.eu/fgsetup/APIServerDaemon_lib.tar.gz -O $(PKGDIR)/$(HOMEDIR)/$(FGUSER)/$(DEBPKGDIR)/APIServerDaemon_lib.tar.gz
 	@mkdir -p $(SRCPKGDIR)
 	@echo "$$DEBCONTROL" > $(PKGDIR)/DEBIAN/control
 	@echo "$$DEBPOSTINST" > $(PKGDIR)/DEBIAN/postinst
