@@ -141,7 +141,7 @@ deb:
 	@if [ -d $(PKGDIR) ]; then rm -rf $(PKGDIR); fi
 	@mkdir -p $(PKGDIR)/DEBIAN
 	@mkdir -p $(PKGDIR)/$(HOMEDIR)/$(FGUSER)/$(DEBPKGDIR)
-	@cd $(PKGDIR)/$(HOMEDIR)/$(FGUSER) && ln -s $$(ls -1 | head -n 1) APIServerDaemon && cd -
+	@cd $(PKGDIR)/$(HOMEDIR)/$(FGUSER) && ln -s $$(ls -1 | grep APIServerDaemon | head -n 1) APIServerDaemon && cd -
 	@cp -r . $(PKGDIR)/$(HOMEDIR)/$(FGUSER)/$(DEBPKGDIR)
 	@rm -rf $(PKGDIR)/.git
 	@[ -f APIServerDaemon_lib.tar.gz ] || wget http://sgw.indigo-datacloud.eu/fgsetup/APIServerDaemon_lib.tar.gz -O $(PKGDIR)/$(HOMEDIR)/$(FGUSER)/APIServerDaemon_lib.tar.gz
